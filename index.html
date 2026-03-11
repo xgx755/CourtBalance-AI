@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CourtBalance AI — Chapel Hill, NC</title>
+  <meta name="description"
+    content="CourtBalance AI: A scheduling transparency tool for Chapel Hill Parks &amp; Recreation tennis and pickleball facilities.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
+
+    :root {
+      --primary: #B8924A;
+      --primary-dark: #9A7A3C;
+      --navy: #1C2B3A;
+      --slate: #2D4156;
+      --brass: #B8924A;
+      --amber: #D4A96A;
+      --stone: #E8E3D8;
+      --cream: #FDFAF5;
+      --white: #FFFFFF;
+      --green: #5A7A5A;
+      --amber-warn: #C4943A;
+      --red: #9E4A4A;
+      --info: #5B7E9E;
+      --bg: #FDFAF5;
+      --card: #FFFFFF;
+      --text: #3A3A3A;
+      --muted: #7A7A72;
+      --shadow: none;
+      --radius: 4px;
+      --gap: 16px;
+      --font: "Source Sans 3", system-ui, -apple-system, sans-serif;
+      --font-heading: "Playfair Display", Georgia, serif;
+    }
+
+    html,
+    body {
+      height: 100%;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 16px;
+      line-height: 1.7
+    }
+
+    /* TOP BAR */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--navy);
+      color: var(--white);
+      padding: 0 24px;
+      height: 56px;
+      position: sticky;
+      top: 0;
+      z-index: 100
+    }
+
+    .topbar h1 {
+      font-family: var(--font-heading);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0
+    }
+
+    .topbar h1 span {
+      color: var(--brass);
+      font-family: var(--font);
+      font-weight: 500
+    }
+
+    .topbar .tagline {
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 500;
+      opacity: .75;
+      letter-spacing: .3px
+    }
+
+    .topbar .toggle-btn {
+      background: var(--brass);
+      color: var(--white);
+      border: none;
+      padding: 12px 28px;
+      border-radius: 3px;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background .2s
+    }
+
+    .topbar .toggle-btn:hover {
+      background: var(--primary-dark)
+    }
+
+    /* LAYOUT */
+    .app {
+      display: flex;
+      height: calc(100vh - 56px)
+    }
+
+    .sidebar {
+      width: 300px;
+      min-width: 300px;
+      background: var(--white);
+      border-right: 1px solid var(--stone);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden
+    }
+
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 32px;
+      background: var(--bg)
+    }
+
+    /* FILTERS */
+    .filters {
+      padding: 16px;
+      border-bottom: 1px solid var(--stone);
+      display: flex;
+      flex-direction: column;
+      gap: 10px
+    }
+
+    .filters label {
+      font-family: var(--font);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--brass)
+    }
+
+    .filters select {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid var(--stone);
+      border-radius: var(--radius);
+      font-family: var(--font);
+      font-size: 14px;
+      background: var(--white);
+      color: var(--text);
+      cursor: pointer
+    }
+
+    /* FACILITY LIST */
+    .facility-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px
+    }
+
+    .facility-card {
+      padding: 12px 14px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all .2s;
+      border-left: 3px solid transparent;
+      margin-bottom: 6px
+    }
+
+    .facility-card:hover {
+      background: var(--stone);
+      transform: none
+    }
+
+    .facility-card.active {
+      border-left-color: var(--brass);
+      background: #F5F2EB
+    }
+
+    .facility-card .fc-name {
+      font-family: var(--font-heading);
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: var(--navy)
+    }
+
+    .facility-card .fc-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--muted)
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--white)
+    }
+
+    .badge-tennis {
+      background: var(--slate)
+    }
+
+    .badge-pickleball {
+      background: var(--green)
+    }
+
+    .badge-closed {
+      background: var(--red)
+    }
+
+    .facility-card .fc-icons {
+      font-size: 13px;
+      margin-left: auto
+    }
+
+    .no-results {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--muted);
+      font-size: 14px
+    }
+
+    /* MAIN CONTENT */
+    .empty-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--muted);
+      font-size: 16px;
+      text-align: center
+    }
+
+    .facility-detail {
+      display: none
+    }
+
+    .detail-header {
+      margin-bottom: 20px
+    }
+
+    .detail-header h2 {
+      font-family: var(--font-heading);
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--navy)
+    }
+
+    .detail-header .address {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 10px
+    }
+
+    .detail-badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center
+    }
+
+    .detail-badges .badge {
+      font-size: 12px;
+      padding: 3px 10px
+    }
+
+    .meta-badge {
+      background: var(--stone);
+      color: var(--navy);
+      font-weight: 500
+    }
+
+    /* STATUS BANNER */
+    .status-banner {
+      background: #F5EFE0;
+      border: 1px solid var(--amber);
+      border-left: 3px solid var(--amber-warn);
+      color: #5C4A1E;
+      padding: 10px 16px;
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+      font-weight: 500;
+      font-size: 14px
+    }
+
+    /* TABS */
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 20px;
+      border-bottom: 2px solid var(--stone)
+    }
+
+    .tab-btn {
+      padding: 10px 20px;
+      background: none;
+      border: none;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all .2s
+    }
+
+    .tab-btn.active {
+      color: var(--brass);
+      border-bottom-color: var(--brass)
+    }
+
+    .tab-btn:hover {
+      color: var(--navy)
+    }
+
+    /* SUGGEST BALANCE */
+    .suggest-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px
+    }
+
+    .suggest-btn {
+      background: var(--brass);
+      color: var(--white);
+      border: none;
+      padding: 12px 28px;
+      border-radius: 3px;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background .2s
+    }
+
+    .suggest-btn:hover {
+      background: var(--primary-dark)
+    }
+
+    .suggest-btn:disabled {
+      background: #C5BBA8;
+      cursor: not-allowed
+    }
+
+    .rationale-panel {
+      background: var(--stone);
+      border: 1px solid var(--stone);
+      border-left: 3px solid var(--brass);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-top: 16px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text);
+      display: none
+    }
+
+    /* SCHEDULE GRID */
+    .schedule-grid-wrapper {
+      overflow-x: auto
+    }
+
+    .schedule-grid {
+      display: grid;
+      grid-template-columns: 70px repeat(7, 1fr);
+      grid-template-rows: auto repeat(14, 60px);
+      gap: 1px;
+      background: var(--stone);
+      border-radius: var(--radius);
+      overflow: hidden;
+      min-width: 700px;
+      border: 1px solid var(--stone)
+    }
+
+    .grid-header {
+      background: var(--navy);
+      color: var(--white);
+      font-family: var(--font);
+      font-weight: 600;
+      font-size: 12px;
+      text-align: center;
+      padding: 10px 4px;
+      text-transform: uppercase;
+      letter-spacing: .5px
+    }
+
+    .grid-time {
+      background: var(--white);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px
+    }
+
+    .grid-cell {
+      background: var(--white);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--white);
+      padding: 4px;
+      transition: background .15s;
+      cursor: default;
+      line-height: 1.2
+    }
+
+    .grid-cell.type-open {
+      background: var(--green)
+    }
+
+    .grid-cell.type-reserved {
+      background: var(--amber)
+    }
+
+    .grid-cell.type-maintenance {
+      background: var(--red)
+    }
+
+    .grid-cell.staff-mode {
+      cursor: pointer
+    }
+
+    .grid-cell.staff-mode:hover {
+      filter: brightness(.9)
+    }
+
+    .grid-cell.empty.staff-mode:hover {
+      background: var(--stone)
+    }
+
+    .grid-cell.empty.staff-mode:hover::after {
+      content: "+";
+      color: var(--muted);
+      font-size: 18px;
+      font-weight: 300
+    }
+
+    .grid-cell.empty {
+      color: transparent
+    }
+
+    /* EDIT POPOVER */
+    .popover-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200
+    }
+
+    .popover {
+      position: fixed;
+      z-index: 201;
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--stone);
+      box-shadow: 0 4px 16px rgba(28, 43, 58, .12);
+      padding: 16px;
+      min-width: 220px;
+      display: none
+    }
+
+    .popover h4 {
+      font-family: var(--font-heading);
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--navy)
+    }
+
+    .popover select,
+    .popover button {
+      width: 100%;
+      margin-bottom: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--stone);
+      border-radius: var(--radius);
+      font-family: var(--font);
+      font-size: 14px
+    }
+
+    .popover .save-btn {
+      background: var(--brass);
+      color: var(--white);
+      border: none;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background .2s
+    }
+
+    .popover .save-btn:hover {
+      background: var(--primary-dark)
+    }
+
+    /* FEEDBACK FORM */
+    .feedback-section {
+      margin-top: 24px
+    }
+
+    .feedback-form {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--stone);
+      padding: 24px;
+      max-width: 500px;
+      position: relative
+    }
+
+    .feedback-form::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 24px;
+      width: 32px;
+      height: 3px;
+      background: var(--brass);
+      border-radius: 0 0 2px 2px
+    }
+
+    .feedback-form h3 {
+      font-family: var(--font-heading);
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--navy)
+    }
+
+    .form-group {
+      margin-bottom: 14px
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--text)
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--stone);
+      border-radius: var(--radius);
+      font-family: var(--font);
+      font-size: 14px;
+      background: var(--white)
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 80px
+    }
+
+    .form-group .char-count {
+      font-size: 11px;
+      color: var(--muted);
+      text-align: right;
+      margin-top: 2px
+    }
+
+    .submit-btn {
+      background: var(--brass);
+      color: var(--white);
+      border: none;
+      padding: 12px 28px;
+      border-radius: 3px;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background .2s
+    }
+
+    .submit-btn:hover {
+      background: var(--primary-dark)
+    }
+
+    .feedback-success {
+      background: #E8EFE8;
+      border: 1px solid #B8CCB8;
+      color: #3A5A3A;
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      font-weight: 500;
+      font-size: 14px;
+      display: none
+    }
+
+    /* FEEDBACK INBOX */
+    .feedback-inbox {
+      display: none
+    }
+
+    .inbox-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px
+    }
+
+    .inbox-table th {
+      background: var(--navy);
+      color: var(--white);
+      padding: 10px 12px;
+      text-align: left;
+      font-family: var(--font);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .3px
+    }
+
+    .inbox-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--stone)
+    }
+
+    .inbox-table tr:nth-child(even) {
+      background: var(--stone)
+    }
+
+    .inbox-table tr:hover {
+      background: #F5F2EB
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      user-select: none
+    }
+
+    .status-new {
+      background: #F0E0E0;
+      color: var(--red)
+    }
+
+    .status-reviewed {
+      background: #E8EFE8;
+      color: #3A5A3A
+    }
+
+    .inbox-empty {
+      text-align: center;
+      padding: 40px;
+      color: var(--muted)
+    }
+
+    /* STAFF STATS */
+    .staff-stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px
+    }
+
+    .stat-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--stone);
+      padding: 14px 20px;
+      text-align: center;
+      min-width: 120px;
+      position: relative
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 32px;
+      height: 3px;
+      background: var(--brass);
+      border-radius: 0 0 2px 2px
+    }
+
+    .stat-card .stat-num {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--brass)
+    }
+
+    .stat-card .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.18em
+    }
+
+    /* MAP */
+    #mapTab {
+      display: none
+    }
+
+    #facilityMap {
+      height: 500px;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--stone);
+      z-index: 1
+    }
+
+    .map-popup .popup-name {
+      font-family: var(--font-heading);
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 4px;
+      color: var(--navy)
+    }
+
+    .map-popup .popup-addr {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px
+    }
+
+    .map-popup .popup-badges {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-bottom: 8px
+    }
+
+    .map-popup .popup-btn {
+      background: var(--brass);
+      color: var(--white);
+      border: none;
+      padding: 5px 14px;
+      border-radius: 3px;
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      cursor: pointer
+    }
+
+    .map-popup .popup-btn:hover {
+      background: var(--primary-dark)
+    }
+
+    /* ANIMATIONS */
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    .fade-in {
+      animation: fadeIn .25s ease
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <h1>CourtBalance <span>AI</span></h1>
+    <div class="tagline">Chapel Hill, NC — Parks &amp; Recreation</div>
+    <button class="toggle-btn" id="viewToggle" onclick="toggleView()">Switch to Staff View</button>
+  </header>
+
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="filters">
+        <div>
+          <label>Sport</label>
+          <select id="filterSport" onchange="applyFilters()">
+            <option value="all">All Sports</option>
+            <option value="tennis">Tennis</option>
+            <option value="pickleball">Pickleball</option>
+          </select>
+        </div>
+        <div>
+          <label>Lighted</label>
+          <select id="filterLighted" onchange="applyFilters()">
+            <option value="any">Any</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+        <div>
+          <label>Indoor</label>
+          <select id="filterIndoor" onchange="applyFilters()">
+            <option value="any">Any</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+      </div>
+      <div class="facility-list" id="facilityList"></div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main" id="mainContent">
+      <div class="empty-state" id="emptyState">
+        <div>
+          <div style="font-size:48px;margin-bottom:12px">🎾</div>
+          <div>Select a facility to view its schedule.</div>
+        </div>
+      </div>
+      <div class="facility-detail" id="facilityDetail">
+        <!-- Staff stats bar -->
+        <div class="staff-stats" id="staffStats" style="display:none">
+          <div class="stat-card">
+            <div class="stat-num" id="statFacilities">13</div>
+            <div class="stat-label">Facilities</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num" id="statFeedbackNew">0</div>
+            <div class="stat-label">New Feedback</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num" id="statFeedbackTotal">0</div>
+            <div class="stat-label">Total Feedback</div>
+          </div>
+        </div>
+        <div class="detail-header">
+          <h2 id="detailName"></h2>
+          <div class="address" id="detailAddress"></div>
+          <div class="detail-badges" id="detailBadges"></div>
+        </div>
+        <div class="status-banner" id="statusBanner" style="display:none"></div>
+        <!-- Tabs -->
+        <div class="tabs" id="tabBar">
+          <button class="tab-btn active" data-tab="map" onclick="switchTab('map')">Map</button>
+          <button class="tab-btn" data-tab="schedule" onclick="switchTab('schedule')">Schedule</button>
+          <button class="tab-btn" data-tab="feedback" onclick="switchTab('feedback')" id="feedbackTabBtn"
+            style="display:none">Feedback</button>
+        </div>
+        <!-- Schedule Tab -->
+        <div id="scheduleTab">
+          <div class="suggest-bar" id="suggestBar" style="display:none">
+            <button class="suggest-btn" id="suggestBtn" onclick="suggestBalance()">⚡ Suggest Balance</button>
+            <span id="suggestLabel" style="font-size:14px;color:#7A7A72"></span>
+          </div>
+          <div class="schedule-grid-wrapper">
+            <div class="schedule-grid" id="scheduleGrid"></div>
+          </div>
+          <div class="rationale-panel" id="rationalePanel"></div>
+          <!-- Public Feedback Form -->
+          <div class="feedback-section" id="feedbackFormSection">
+            <div class="feedback-form" id="feedbackForm">
+              <h3>📋 Submit Feedback</h3>
+              <div class="form-group">
+                <label>Facility</label>
+                <input type="text" id="fbFacility" readonly>
+              </div>
+              <div class="form-group">
+                <label>Sport</label>
+                <select id="fbSport">
+                  <option value="tennis">Tennis</option>
+                  <option value="pickleball">Pickleball</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Category</label>
+                <select id="fbCategory">
+                  <option value="crowding">Crowding</option>
+                  <option value="fairness">Scheduling Fairness</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="behavior">Behavior</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Description *</label>
+                <textarea id="fbDescription" maxlength="500" placeholder="Describe your feedback..."
+                  oninput="updateCharCount()"></textarea>
+                <div class="char-count"><span id="charCount">0</span>/500</div>
+              </div>
+              <div class="form-group">
+                <label>Email (optional)</label>
+                <input type="email" id="fbEmail" placeholder="your@email.com">
+              </div>
+              <button class="submit-btn" onclick="submitFeedback()">Submit Feedback</button>
+            </div>
+            <div class="feedback-success" id="feedbackSuccess">✓ Thank you — feedback submitted!</div>
+          </div>
+        </div>
+        <!-- Map Tab -->
+        <div id="mapTab">
+          <div id="facilityMap"></div>
+        </div>
+        <!-- Feedback Inbox Tab (Staff) -->
+        <div id="feedbackInbox" class="feedback-inbox">
+          <table class="inbox-table">
+            <thead>
+              <tr>
+                <th>Facility</th>
+                <th>Sport</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th>Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="inboxBody"></tbody>
+          </table>
+          <div class="inbox-empty" id="inboxEmpty" style="display:none">No feedback submissions yet.</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Edit Popover -->
+  <div class="popover-overlay" id="popoverOverlay" onclick="closePopover()"></div>
+  <div class="popover" id="editPopover">
+    <h4>Edit Schedule Block</h4>
+    <select id="popType">
+      <option value="">Clear</option>
+      <option value="open">Open Play / Drop-in</option>
+      <option value="reserved">Reserved / League</option>
+      <option value="maintenance">Maintenance / Closed</option>
+    </select>
+    <select id="popSport">
+      <option value="tennis">Tennis</option>
+      <option value="pickleball">Pickleball</option>
+    </select>
+    <button class="save-btn" onclick="savePopover()">Save</button>
+  </div>
+
+  <script>
+    /* ============================================
+       DATA LAYER
+       ============================================ */
+    const facilities = [
+      { id: "ephesus-park-tennis", name: "Ephesus Park (Tennis)", address: "1501 Ephesus Church Rd", sports: ["tennis"], courtCount: 4, lighted: true, indoor: false, condition: null, status: "open", statusNote: null, lat: 35.8185, lng: -79.0195 },
+      { id: "hargraves-center-park", name: "Hargraves Center Park", address: "216 N. Roberson St", sports: ["tennis"], courtCount: 3, lighted: true, indoor: false, condition: null, status: "open", statusNote: null, lat: 35.9182, lng: -79.0558 },
+      { id: "oakwood-park", name: "Oakwood Park", address: "20 Oakwood Dr", sports: ["tennis"], courtCount: 1, lighted: false, indoor: false, condition: null, status: "open", statusNote: null, lat: 35.9295, lng: -79.0405 },
+      { id: "phillips-park", name: "Phillips Park", address: "606 N. Estes Dr", sports: ["tennis"], courtCount: 4, lighted: false, indoor: false, condition: "fair", status: "open", statusNote: null, lat: 35.9347, lng: -79.0558 },
+      { id: "cedar-falls-park", name: "Cedar Falls Park", address: "501 Weaver Dairy Rd", sports: ["tennis"], courtCount: 6, lighted: true, indoor: false, condition: null, status: "closed", statusNote: "Closed for reconstruction", lat: 35.9428, lng: -79.0631 },
+      { id: "unc-south-tennis", name: "UNC South Campus (Tennis)", address: "345 Skipper Bowles Dr", sports: ["tennis"], courtCount: 2, lighted: false, indoor: false, condition: null, status: "open", statusNote: null, lat: 35.9046, lng: -79.0465 },
+      { id: "southern-community-park", name: "Southern Community Park", address: "1000 Sumac Rd", sports: ["pickleball"], courtCount: 11, lighted: true, indoor: false, condition: null, status: "open", statusNote: null, lat: 35.8795, lng: -79.0715 },
+      { id: "ephesus-park-pickleball", name: "Ephesus Park (Pickleball)", address: "1501 Ephesus Church Rd", sports: ["pickleball"], courtCount: 6, lighted: true, indoor: false, condition: null, status: "open", statusNote: null, lat: 35.8189, lng: -79.0190 },
+      { id: "ch-community-center", name: "Chapel Hill Community Center", address: "120 S. Estes Dr", sports: ["pickleball"], courtCount: null, lighted: false, indoor: true, condition: null, status: "open", statusNote: null, lat: 35.9270, lng: -79.0565 },
+      { id: "unc-south-pickleball", name: "UNC South Campus (Pickleball)", address: "345 Skipper Bowles Dr", sports: ["pickleball"], courtCount: 5, lighted: false, indoor: false, condition: null, status: "open", statusNote: null, lat: 35.9050, lng: -79.0460 },
+      { id: "seymour-center", name: "Seymour Center", address: "2551 Homestead Rd", sports: ["pickleball"], courtCount: null, lighted: false, indoor: false, condition: null, status: "open", statusNote: null, lat: 35.9520, lng: -79.0920 },
+      { id: "hargraves-community-center", name: "Hargraves Community Center", address: "216 N. Roberson St", sports: ["pickleball"], courtCount: null, lighted: false, indoor: false, condition: null, status: "open", statusNote: null, lat: 35.9186, lng: -79.0554 },
+      { id: "chatham-ne-district", name: "Chatham Co. NE District Park", address: "5408 Big Woods Rd", sports: ["pickleball"], courtCount: null, lighted: false, indoor: false, condition: null, status: "open", statusNote: null, lat: 35.8120, lng: -79.0850 }
+    ];
+
+    let scheduleBlocks = [
+      // Ephesus Tennis
+      { facilityId: "ephesus-park-tennis", dayOfWeek: 0, startHour: 17, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      { facilityId: "ephesus-park-tennis", dayOfWeek: 0, startHour: 18, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      { facilityId: "ephesus-park-tennis", dayOfWeek: 2, startHour: 17, type: "reserved", sport: "tennis", label: "Tennis League" },
+      { facilityId: "ephesus-park-tennis", dayOfWeek: 2, startHour: 18, type: "reserved", sport: "tennis", label: "Tennis League" },
+      { facilityId: "ephesus-park-tennis", dayOfWeek: 5, startHour: 9, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      { facilityId: "ephesus-park-tennis", dayOfWeek: 5, startHour: 10, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      // Hargraves Tennis
+      { facilityId: "hargraves-center-park", dayOfWeek: 1, startHour: 17, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      { facilityId: "hargraves-center-park", dayOfWeek: 1, startHour: 18, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      { facilityId: "hargraves-center-park", dayOfWeek: 3, startHour: 9, type: "reserved", sport: "tennis", label: "Junior Program" },
+      { facilityId: "hargraves-center-park", dayOfWeek: 6, startHour: 9, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      // Phillips Park
+      { facilityId: "phillips-park", dayOfWeek: 0, startHour: 17, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      { facilityId: "phillips-park", dayOfWeek: 4, startHour: 17, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      { facilityId: "phillips-park", dayOfWeek: 5, startHour: 10, type: "reserved", sport: "tennis", label: "Tennis Reserved" },
+      { facilityId: "phillips-park", dayOfWeek: 6, startHour: 9, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      // Oakwood
+      { facilityId: "oakwood-park", dayOfWeek: 2, startHour: 17, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      { facilityId: "oakwood-park", dayOfWeek: 5, startHour: 10, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      { facilityId: "oakwood-park", dayOfWeek: 6, startHour: 10, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      // UNC South Tennis
+      { facilityId: "unc-south-tennis", dayOfWeek: 0, startHour: 17, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      { facilityId: "unc-south-tennis", dayOfWeek: 1, startHour: 18, type: "reserved", sport: "tennis", label: "Club Practice" },
+      { facilityId: "unc-south-tennis", dayOfWeek: 5, startHour: 9, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      { facilityId: "unc-south-tennis", dayOfWeek: 5, startHour: 10, type: "open", sport: "tennis", label: "Tennis Open Play" },
+      // Southern Community Pickleball
+      { facilityId: "southern-community-park", dayOfWeek: 0, startHour: 17, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "southern-community-park", dayOfWeek: 0, startHour: 18, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "southern-community-park", dayOfWeek: 2, startHour: 9, type: "reserved", sport: "pickleball", label: "Pickleball League" },
+      { facilityId: "southern-community-park", dayOfWeek: 4, startHour: 17, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "southern-community-park", dayOfWeek: 5, startHour: 9, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "southern-community-park", dayOfWeek: 5, startHour: 10, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      // Ephesus Pickleball
+      { facilityId: "ephesus-park-pickleball", dayOfWeek: 1, startHour: 17, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "ephesus-park-pickleball", dayOfWeek: 1, startHour: 18, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "ephesus-park-pickleball", dayOfWeek: 3, startHour: 17, type: "reserved", sport: "pickleball", label: "Pickleball Clinic" },
+      { facilityId: "ephesus-park-pickleball", dayOfWeek: 5, startHour: 10, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "ephesus-park-pickleball", dayOfWeek: 6, startHour: 9, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      // CH Community Center
+      { facilityId: "ch-community-center", dayOfWeek: 0, startHour: 10, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "ch-community-center", dayOfWeek: 2, startHour: 10, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "ch-community-center", dayOfWeek: 4, startHour: 10, type: "reserved", sport: "pickleball", label: "Seniors Program" },
+      // UNC South Pickleball
+      { facilityId: "unc-south-pickleball", dayOfWeek: 0, startHour: 17, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "unc-south-pickleball", dayOfWeek: 2, startHour: 17, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "unc-south-pickleball", dayOfWeek: 5, startHour: 9, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "unc-south-pickleball", dayOfWeek: 6, startHour: 10, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      // Seymour Center
+      { facilityId: "seymour-center", dayOfWeek: 1, startHour: 10, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "seymour-center", dayOfWeek: 3, startHour: 10, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "seymour-center", dayOfWeek: 5, startHour: 9, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      // Hargraves Pickleball
+      { facilityId: "hargraves-community-center", dayOfWeek: 0, startHour: 17, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "hargraves-community-center", dayOfWeek: 4, startHour: 17, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "hargraves-community-center", dayOfWeek: 6, startHour: 9, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      // Chatham NE
+      { facilityId: "chatham-ne-district", dayOfWeek: 0, startHour: 17, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "chatham-ne-district", dayOfWeek: 3, startHour: 17, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      { facilityId: "chatham-ne-district", dayOfWeek: 5, startHour: 10, type: "open", sport: "pickleball", label: "Pickleball Open Play" },
+      // Cedar Falls — maintenance
+      { facilityId: "cedar-falls-park", dayOfWeek: 0, startHour: 7, type: "maintenance", sport: null, label: "Closed" },
+      { facilityId: "cedar-falls-park", dayOfWeek: 1, startHour: 7, type: "maintenance", sport: null, label: "Closed" },
+      { facilityId: "cedar-falls-park", dayOfWeek: 2, startHour: 7, type: "maintenance", sport: null, label: "Closed" }
+    ];
+
+    let feedbackItems = [
+      { id: 1, facilityId: "ephesus-park-tennis", sport: "tennis", category: "crowding", description: "Courts are extremely crowded on weekday evenings. Often wait 30+ minutes for a court to open up.", email: "player1@email.com", timestamp: "2026-03-08T18:30:00Z", status: "new" },
+      { id: 2, facilityId: "southern-community-park", sport: "pickleball", category: "fairness", description: "Pickleball players consistently get fewer prime-time slots than tennis. Would love to see a more balanced schedule.", email: null, timestamp: "2026-03-09T14:15:00Z", status: "new" },
+      { id: 3, facilityId: "phillips-park", sport: "tennis", category: "maintenance", description: "Net on court 2 is sagging badly and the surface has several cracks near the baseline.", email: "resident@chapelhill.org", timestamp: "2026-03-07T09:00:00Z", status: "reviewed" },
+      { id: 4, facilityId: "ephesus-park-pickleball", sport: "pickleball", category: "behavior", description: "Some players are hogging courts during open play — not rotating out after games as posted rules require.", email: null, timestamp: "2026-03-10T11:45:00Z", status: "new" },
+      { id: 5, facilityId: "hargraves-center-park", sport: "tennis", category: "other", description: "Would it be possible to add a water fountain near the courts? The closest one is a long walk.", email: "tennisfan@gmail.com", timestamp: "2026-03-06T16:20:00Z", status: "reviewed" }
+    ];
+
+    let nextFeedbackId = 6;
+
+    /* ============================================
+       STATE
+       ============================================ */
+    let isStaffView = false;
+    let selectedFacilityId = null;
+    let currentTab = "map";
+    let editingCell = null;
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const hours = Array.from({ length: 14 }, (_, i) => i + 7);
+
+    /* ============================================
+       RENDERING
+       ============================================ */
+    function renderFacilityList() {
+      const list = document.getElementById("facilityList");
+      const sport = document.getElementById("filterSport").value;
+      const lighted = document.getElementById("filterLighted").value;
+      const indoor = document.getElementById("filterIndoor").value;
+      const filtered = facilities.filter(f => {
+        if (sport !== "all" && !f.sports.includes(sport)) return false;
+        if (lighted === "yes" && !f.lighted) return false;
+        if (lighted === "no" && f.lighted) return false;
+        if (indoor === "yes" && !f.indoor) return false;
+        if (indoor === "no" && f.indoor) return false;
+        return true;
+      });
+      if (!filtered.length) { list.innerHTML = '<div class="no-results">No facilities match your filters.</div>'; return }
+      list.innerHTML = filtered.map(f => {
+        const badges = f.sports.map(s => `<span class="badge badge-${s}">${s.charAt(0).toUpperCase() + s.slice(1)}</span>`).join("");
+        const courts = f.courtCount !== null ? f.courtCount + " courts" : "TBD";
+        const icons = (f.lighted ? "💡" : "") + (f.indoor ? " 🏠" : "");
+        const closed = f.status !== "open" ? ` <span class="badge badge-closed">Closed</span>` : "";
+        return `<div class="facility-card${f.id === selectedFacilityId ? " active" : ""}" onclick="selectFacility('${f.id}')">
+      <div class="fc-name">${f.name}</div>
+      <div class="fc-meta">${badges}${closed} <span>${courts}</span><span class="fc-icons">${icons}</span></div>
+    </div>`;
+      }).join("");
+    }
+
+    function selectFacility(id) {
+      selectedFacilityId = id;
+      currentTab = "map";
+      renderFacilityList();
+      renderDetail();
+    }
+
+    function renderDetail() {
+      const f = facilities.find(x => x.id === selectedFacilityId);
+      if (!f) { document.getElementById("emptyState").style.display = "flex"; document.getElementById("facilityDetail").style.display = "none"; return }
+      document.getElementById("emptyState").style.display = "none";
+      document.getElementById("facilityDetail").style.display = "block";
+      document.getElementById("facilityDetail").classList.add("fade-in");
+      document.getElementById("detailName").textContent = f.name;
+      document.getElementById("detailAddress").textContent = f.address;
+      // Badges
+      let bh = f.sports.map(s => `<span class="badge badge-${s}">${s.charAt(0).toUpperCase() + s.slice(1)}</span>`).join("");
+      bh += `<span class="badge meta-badge">${f.courtCount !== null ? f.courtCount + " Courts" : "TBD Courts"}</span>`;
+      if (f.lighted) bh += `<span class="badge meta-badge">💡 Lighted</span>`;
+      if (f.indoor) bh += `<span class="badge meta-badge">🏠 Indoor</span>`;
+      if (f.condition) bh += `<span class="badge meta-badge">Condition: ${f.condition}</span>`;
+      document.getElementById("detailBadges").innerHTML = bh;
+      // Status banner
+      const banner = document.getElementById("statusBanner");
+      if (f.status !== "open") { banner.style.display = "block"; banner.textContent = `⚠ ${f.name} — ${f.statusNote || "Currently unavailable"}` } else { banner.style.display = "none" }
+      // Tabs
+      document.getElementById("feedbackTabBtn").style.display = isStaffView ? "inline-block" : "none";
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === currentTab));
+      // Staff stats
+      document.getElementById("staffStats").style.display = isStaffView ? "flex" : "none";
+      if (isStaffView) updateStats();
+      // Suggest bar
+      const hasPair = getDualSportPair(f);
+      document.getElementById("suggestBar").style.display = (isStaffView && hasPair && f.status === "open") ? "flex" : "none";
+      // Content
+      document.getElementById("scheduleTab").style.display = "none";
+      document.getElementById("mapTab").style.display = "none";
+      document.getElementById("feedbackInbox").style.display = "none";
+      if (currentTab === "schedule") {
+        document.getElementById("scheduleTab").style.display = "block";
+        document.getElementById("feedbackFormSection").style.display = isStaffView ? "none" : "block";
+        if (f.status === "open" || f.status === "closed") renderScheduleGrid(f);
+      } else if (currentTab === "map") {
+        document.getElementById("mapTab").style.display = "block";
+        setTimeout(() => renderMap(), 50);
+      } else {
+        document.getElementById("feedbackInbox").style.display = "block";
+        renderFeedbackInbox();
+      }
+      document.getElementById("fbFacility").value = f.name;
+      document.getElementById("rationalePanel").style.display = "none";
+    }
+
+    function renderScheduleGrid(f) {
+      const grid = document.getElementById("scheduleGrid");
+      let html = '<div class="grid-header"></div>';
+      days.forEach(d => { html += `<div class="grid-header">${d}</div>` });
+      hours.forEach(h => {
+        const label = h <= 12 ? (h === 12 ? "12 PM" : h + " AM") : ((h - 12) + " PM");
+        html += `<div class="grid-time">${label}</div>`;
+        for (let d = 0; d < 7; d++) {
+          const block = scheduleBlocks.find(b => b.facilityId === f.id && b.dayOfWeek === d && b.startHour === h);
+          if (block) {
+            const cls = `grid-cell type-${block.type}${isStaffView ? " staff-mode" : ""}`;
+            html += `<div class="${cls}" data-day="${d}" data-hour="${h}" ${isStaffView ? `onclick="openPopover(event,${d},${h})"` : ""}>${block.label}</div>`;
+          } else {
+            const cls = `grid-cell empty${isStaffView ? " staff-mode" : ""}`;
+            html += `<div class="${cls}" data-day="${d}" data-hour="${h}" ${isStaffView ? `onclick="openPopover(event,${d},${h})"` : ""}></div>`;
+          }
+        }
+      });
+      grid.innerHTML = html;
+    }
+
+    /* ============================================
+       VIEW TOGGLE
+       ============================================ */
+    function toggleView() {
+      isStaffView = !isStaffView;
+      document.getElementById("viewToggle").textContent = isStaffView ? "Switch to Public View" : "Switch to Staff View";
+      if (currentTab === "feedback" && !isStaffView) currentTab = "schedule";
+      renderDetail();
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      renderDetail();
+    }
+
+    function applyFilters() { renderFacilityList(); refreshMapMarkers() }
+
+    /* ============================================
+       STAFF — EDIT POPOVER
+       ============================================ */
+    function openPopover(e, day, hour) {
+      if (!isStaffView) return;
+      editingCell = { day, hour };
+      const block = scheduleBlocks.find(b => b.facilityId === selectedFacilityId && b.dayOfWeek === day && b.startHour === hour);
+      document.getElementById("popType").value = block ? block.type : "";
+      document.getElementById("popSport").value = block && block.sport ? block.sport : "tennis";
+      const pop = document.getElementById("editPopover");
+      const rect = e.target.getBoundingClientRect();
+      pop.style.top = Math.min(rect.bottom + 4, window.innerHeight - 200) + "px";
+      pop.style.left = Math.min(rect.left, window.innerWidth - 240) + "px";
+      pop.style.display = "block";
+      document.getElementById("popoverOverlay").style.display = "block";
+    }
+
+    function closePopover() {
+      document.getElementById("editPopover").style.display = "none";
+      document.getElementById("popoverOverlay").style.display = "none";
+      editingCell = null;
+    }
+
+    function savePopover() {
+      if (!editingCell) return;
+      const type = document.getElementById("popType").value;
+      const sport = document.getElementById("popSport").value;
+      const idx = scheduleBlocks.findIndex(b => b.facilityId === selectedFacilityId && b.dayOfWeek === editingCell.day && b.startHour === editingCell.hour);
+      if (!type) { if (idx > -1) scheduleBlocks.splice(idx, 1) }
+      else {
+        const labels = { "open": `${sport.charAt(0).toUpperCase() + sport.slice(1)} Open Play`, "reserved": `${sport.charAt(0).toUpperCase() + sport.slice(1)} Reserved`, "maintenance": "Maintenance" };
+        const block = { facilityId: selectedFacilityId, dayOfWeek: editingCell.day, startHour: editingCell.hour, type, sport: type === "maintenance" ? null : sport, label: labels[type] };
+        if (idx > -1) scheduleBlocks[idx] = block; else scheduleBlocks.push(block);
+      }
+      closePopover();
+      renderDetail();
+    }
+
+    /* ============================================
+       AI SUGGEST BALANCE
+       ============================================ */
+    function getDualSportPair(f) {
+      return facilities.find(x => x.id !== f.id && x.address === f.address);
+    }
+
+    function suggestBalance() {
+      const f = facilities.find(x => x.id === selectedFacilityId);
+      if (!f) return;
+      const pair = getDualSportPair(f);
+      if (!pair) return;
+      const bothIds = [f.id, pair.id];
+      // Peak hours: weekdays(0-4) 17-20, weekends(5-6) 9-12
+      function isPeak(day, hour) {
+        if (day <= 4) return hour >= 17 && hour <= 20;
+        return hour >= 9 && hour <= 12;
+      }
+      // Collect peak cells for both facilities, skip reserved/maintenance
+      let peakCells = [];
+      for (const fid of bothIds) {
+        for (let d = 0; d < 7; d++) {
+          for (let h = 7; h <= 20; h++) {
+            if (!isPeak(d, h)) continue;
+            const idx = scheduleBlocks.findIndex(b => b.facilityId === fid && b.dayOfWeek === d && b.startHour === h);
+            const block = idx > -1 ? scheduleBlocks[idx] : null;
+            if (block && (block.type === "reserved" || block.type === "maintenance")) continue;
+            peakCells.push({ fid, day: d, hour: h, idx });
+          }
+        }
+      }
+      // Remove existing open blocks in peak slots
+      peakCells.forEach(c => { if (c.idx > -1) scheduleBlocks[c.idx] = null });
+      scheduleBlocks = scheduleBlocks.filter(b => b !== null);
+      // Alternate tennis/pickleball
+      let tennisCount = 0, pickleballCount = 0;
+      peakCells.forEach((c, i) => {
+        const isTennis = i % 2 === 0;
+        const sport = isTennis ? "tennis" : "pickleball";
+        if (isTennis) tennisCount++; else pickleballCount++;
+        scheduleBlocks.push({ facilityId: c.fid, dayOfWeek: c.day, startHour: c.hour, type: "open", sport, label: `${sport.charAt(0).toUpperCase() + sport.slice(1)} Open Play` });
+      });
+      // Show rationale
+      const total = tennisCount + pickleballCount;
+      const panel = document.getElementById("rationalePanel");
+      panel.innerHTML = `<strong>⚡ Balance Applied:</strong> ${f.name} & ${pair.name}: ${total} peak blocks reassigned — ${tennisCount} Tennis Open Play, ${pickleballCount} Pickleball Open Play. Fixed reservations and maintenance blocks preserved. <em>Policy: equal access during high-demand hours (weekdays 5–9 PM, weekends 9 AM–1 PM).</em>`;
+      panel.style.display = "block";
+      document.getElementById("suggestBtn").disabled = true;
+      document.getElementById("suggestLabel").textContent = "Balance applied ✓";
+      renderScheduleGrid(facilities.find(x => x.id === selectedFacilityId));
+    }
+
+    /* ============================================
+       FEEDBACK FORM
+       ============================================ */
+    function updateCharCount() {
+      document.getElementById("charCount").textContent = document.getElementById("fbDescription").value.length;
+    }
+
+    function submitFeedback() {
+      const desc = document.getElementById("fbDescription").value.trim();
+      if (!desc) { alert("Please enter a description."); return }
+      feedbackItems.push({ id: nextFeedbackId++, facilityId: selectedFacilityId, sport: document.getElementById("fbSport").value, category: document.getElementById("fbCategory").value, description: desc, email: document.getElementById("fbEmail").value || null, timestamp: new Date().toISOString(), status: "new" });
+      document.getElementById("feedbackForm").style.display = "none";
+      const success = document.getElementById("feedbackSuccess");
+      success.style.display = "block";
+      setTimeout(() => { success.style.display = "none"; document.getElementById("feedbackForm").style.display = "block"; document.getElementById("fbDescription").value = ""; document.getElementById("fbEmail").value = ""; document.getElementById("charCount").textContent = "0" }, 3000);
+    }
+
+    /* ============================================
+       FEEDBACK INBOX
+       ============================================ */
+    function renderFeedbackInbox() {
+      const body = document.getElementById("inboxBody");
+      const sorted = [...feedbackItems].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      if (!sorted.length) { body.innerHTML = ""; document.getElementById("inboxEmpty").style.display = "block"; return }
+      document.getElementById("inboxEmpty").style.display = "none";
+      body.innerHTML = sorted.map(fb => {
+        const fac = facilities.find(x => x.id === fb.facilityId);
+        const statusCls = fb.status === "new" ? "status-new" : "status-reviewed";
+        const statusLabel = fb.status === "new" ? "New" : "Reviewed";
+        const date = new Date(fb.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        const snippet = fb.description.length > 60 ? fb.description.slice(0, 60) + "…" : fb.description;
+        const cat = fb.category.charAt(0).toUpperCase() + fb.category.slice(1);
+        return `<tr>
+      <td>${fac ? fac.name : fb.facilityId}</td>
+      <td>${fb.sport.charAt(0).toUpperCase() + fb.sport.slice(1)}</td>
+      <td>${cat}</td>
+      <td>${snippet}</td>
+      <td>${date}</td>
+      <td><span class="status-badge ${statusCls}" onclick="toggleFeedbackStatus(${fb.id})">${statusLabel}</span></td>
+    </tr>`;
+      }).join("");
+    }
+
+    function toggleFeedbackStatus(id) {
+      const fb = feedbackItems.find(x => x.id === id);
+      if (fb) fb.status = fb.status === "new" ? "reviewed" : "new";
+      renderFeedbackInbox();
+      updateStats();
+    }
+
+    function updateStats() {
+      document.getElementById("statFacilities").textContent = facilities.length;
+      document.getElementById("statFeedbackNew").textContent = feedbackItems.filter(f => f.status === "new").length;
+      document.getElementById("statFeedbackTotal").textContent = feedbackItems.length;
+    }
+
+    /* ============================================
+       MAP
+       ============================================ */
+    let map = null;
+    let mapMarkers = [];
+
+    function renderMap() {
+      const container = document.getElementById('facilityMap');
+      if (!container) return;
+      if (map) { map.invalidateSize(); return }
+      map = L.map('facilityMap').setView([35.9132, -79.0558], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 18 }).addTo(map);
+      const sport = document.getElementById('filterSport').value;
+      const lighted = document.getElementById('filterLighted').value;
+      const indoor = document.getElementById('filterIndoor').value;
+      const filtered = facilities.filter(f => {
+        if (sport !== 'all' && !f.sports.includes(sport)) return false;
+        if (lighted === 'yes' && !f.lighted) return false;
+        if (lighted === 'no' && f.lighted) return false;
+        if (indoor === 'yes' && !f.indoor) return false;
+        if (indoor === 'no' && f.indoor) return false;
+        return true;
+      });
+      addMapMarkers(filtered);
+    }
+
+    function addMapMarkers(list) {
+      mapMarkers.forEach(m => map.removeLayer(m));
+      mapMarkers = [];
+      list.forEach(f => {
+        const color = f.status !== 'open' ? '#9E4A4A' : f.sports.includes('tennis') ? '#2D4156' : '#5A7A5A';
+        const icon = L.divIcon({ className: '', html: `<div style="width:28px;height:28px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:700">${f.sports.includes('tennis') ? '🎾' : '🏓'}</div>`, iconSize: [28, 28], iconAnchor: [14, 14], popupAnchor: [0, -14] });
+        const badges = f.sports.map(s => `<span style="display:inline-block;padding:2px 7px;border-radius:3px;font-size:10px;font-weight:600;color:#fff;background:${s === 'tennis' ? '#2D4156' : '#5A7A5A'}">${s.charAt(0).toUpperCase() + s.slice(1)}</span>`).join(' ');
+        const courts = f.courtCount !== null ? f.courtCount + ' Courts' : 'TBD Courts';
+        const statusHtml = f.status !== 'open' ? `<div style="color:#9E4A4A;font-weight:600;font-size:11px;margin-top:4px">⚠ ${f.statusNote || 'Closed'}</div>` : '';
+        const popup = `<div class="map-popup" style="min-width:180px">
+      <div class="popup-name">${f.name}</div>
+      <div class="popup-addr">${f.address}</div>
+      <div class="popup-badges">${badges} <span style="font-size:11px;color:#7A7A72;margin-left:4px">${courts}</span></div>
+      ${statusHtml}
+      <button class="popup-btn" onclick="selectFacility('${f.id}');switchTab('schedule')">View Schedule →</button>
+    </div>`;
+        const marker = L.marker([f.lat, f.lng], { icon }).addTo(map).bindPopup(popup);
+        if (f.id === selectedFacilityId) marker.openPopup();
+        mapMarkers.push(marker);
+      });
+      if (list.length) {
+        const bounds = L.latLngBounds(list.map(f => [f.lat, f.lng]));
+        map.fitBounds(bounds.pad(0.15));
+      }
+    }
+
+    function refreshMapMarkers() {
+      if (!map) return;
+      const sport = document.getElementById('filterSport').value;
+      const lighted = document.getElementById('filterLighted').value;
+      const indoor = document.getElementById('filterIndoor').value;
+      const filtered = facilities.filter(f => {
+        if (sport !== 'all' && !f.sports.includes(sport)) return false;
+        if (lighted === 'yes' && !f.lighted) return false;
+        if (lighted === 'no' && f.lighted) return false;
+        if (indoor === 'yes' && !f.indoor) return false;
+        if (indoor === 'no' && f.indoor) return false;
+        return true;
+      });
+      addMapMarkers(filtered);
+    }
+
+    /* ============================================
+       INIT
+       ============================================ */
+    renderFacilityList();
+  </script>
+</body>
+
+</html>
